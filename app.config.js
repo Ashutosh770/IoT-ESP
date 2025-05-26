@@ -5,8 +5,9 @@ export default {
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
+  newArchEnabled: true,
   splash: {
-    image: './assets/splash.png',
+    image: './assets/@splash.png',
     resizeMode: 'contain',
     backgroundColor: '#ffffff'
   },
@@ -14,14 +15,16 @@ export default {
     '**/*'
   ],
   ios: {
-    supportsTablet: true
+    supportsTablet: true,
+    bundleIdentifier: 'com.iotesp.app'
   },
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#ffffff'
     },
-    package: 'com.yourcompany.iotesp',
+    edgeToEdgeEnabled: true,
+    package: 'com.iotesp.app',
     versionCode: 1,
     permissions: [
       "INTERNET",
@@ -32,7 +35,10 @@ export default {
     favicon: './assets/favicon.png'
   },
   extra: {
-    apiUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api'
+    apiUrl: process.env.EXPO_PUBLIC_API_URL ,
+    eas: {
+      projectId: "879028c4-870b-4c74-b219-7d84c2fd803d"
+    }
   },
   updates: {
     fallbackToCacheTimeout: 0,

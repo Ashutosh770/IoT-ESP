@@ -71,6 +71,19 @@ export interface RelayControlResponse {
   relay: 'on' | 'off';
 }
 
+export interface DeviceDetails {
+  deviceId: string;
+  authToken: string;
+  name: string;
+  location: string;
+  lastSeen: string;
+}
+
+export interface DeviceDetailsResponse {
+  success: boolean;
+  device: DeviceDetails;
+}
+
 // Helper function to add timeout to fetch
 const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 60000) => { // 1 minute timeout
   console.log(`Making request to ${url} with ${timeout}ms timeout`);
@@ -158,23 +171,26 @@ export const fetchDevices = async (): Promise<DevicesResponse> => {
     }
     
     const data = await response.json();
-    console.log('Raw device response:', data);
+    console.log('Raw device response:', JSON.stringify(data, null, 2));
     
     if (!data.success || !Array.isArray(data.devices)) {
       throw new Error('Invalid response format');
     }
 
     // Transform the data to match our Device interface
-    const transformedDevices = data.devices.map((device: any) => ({
-      _id: device._id?.$oid || device._id || device.deviceId,
-      deviceId: device.deviceId,
-      name: device.name,
-      location: device.location,
-      createdAt: device.createdAt?.$date || device.createdAt || device.lastSeen,
-      authToken: device.authToken || 'ec0d7c50f303ef0af51928bd681f246f1d2cd53c5e9db7ac8afc4713380f660b' // Use the provided auth token
-    }));
+    const transformedDevices = data.devices.map((device: any) => {
+      console.log('Processing device:', JSON.stringify(device, null, 2));
+      return {
+        _id: device._id?.$oid || device._id || device.deviceId,
+        deviceId: device.deviceId,
+        name: device.name,
+        location: device.location,
+        createdAt: device.createdAt?.$date || device.createdAt || device.lastSeen,
+        authToken: device.authToken || device.auth_token // Try both possible field names
+      };
+    });
     
-    console.log('Transformed devices:', transformedDevices);
+    console.log('Transformed devices:', JSON.stringify(transformedDevices, null, 2));
     
     return {
       success: true,
@@ -460,6 +476,39 @@ export const controlRelay = async (deviceId: string, state: 'on' | 'off'): Promi
     };
   } catch (error) {
     console.error('Error controlling relay:', error);
+    throw error;
+  }
+};
+
+export const fetchDeviceDetails = async (deviceId: string): Promise<DeviceDetailsResponse> => {
+  try {
+    if (!deviceId) {
+      throw new Error('Device ID is required');
+    }
+
+    const url = `${API_URL}/devices/${deviceId}`;
+    console.log('Fetching device details from:', url);
+    
+    const response = await fetchWithTimeout(url);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Device details response:', JSON.stringify(data, null, 2));
+    
+    if (!data.success || !data.device) {
+      throw new Error('Invalid response format');
+    }
+
+    // The API response already matches our interface, no transformation needed
+    return {
+      success: true,
+      device: data.device
+    };
+  } catch (error: any) {
+    console.error('Error fetching device details:', error);
     throw error;
   }
 };
