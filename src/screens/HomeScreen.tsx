@@ -105,6 +105,10 @@ export default function HomeScreen() {
                 <Text style={styles.dataLabel}>Humidity:</Text>
                 <Text style={styles.dataValue}>{latestData.humidity.toFixed(1)}%</Text>
               </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Soil Moisture:</Text>
+                <Text style={styles.dataValue}>{latestData.soilMoisture !== undefined ? latestData.soilMoisture.toFixed(1) + '%' : '--'}</Text>
+              </View>
               <Text style={styles.timestamp}>
                 Last updated: {new Date(latestData.timestamp).toLocaleString()}
               </Text>

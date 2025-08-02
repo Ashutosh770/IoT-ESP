@@ -1,88 +1,100 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { controlRelay } from '../services/api';
+import { controlRelay, getRelayStatus } from '../services/api';
 import { storeAuthToken, getAuthToken } from '../utils/auth';
-import { RelayControlResponse } from '../types';
 
 interface RelayControlProps {
   deviceId: string;
   authToken: string;
-  initialState?: 'on' | 'off';
 }
 
-export const RelayControl: React.FC<RelayControlProps> = ({ deviceId, authToken, initialState = 'off' }) => {
-  const [relayState, setRelayState] = useState<'on' | 'off'>(initialState);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const relayLabels = [
+  'Relay 1',
+  'Relay 2',
+  'Relay 3',
+  'Relay 4',
+];
 
-  // Store auth token when component mounts
+export const RelayControl: React.FC<RelayControlProps> = ({ deviceId, authToken }) => {
+  const [relayStates, setRelayStates] = useState<{
+    relay1: 'on' | 'off';
+    relay2: 'on' | 'off';
+    relay3: 'on' | 'off';
+    relay4: 'on' | 'off';
+  } | null>(null);
+  const [loading, setLoading] = useState<number | null>(null); // relay number loading, or null
+  const [error, setError] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(true);
+
+  // Store auth token and fetch relay status on mount
   useEffect(() => {
-    const storeToken = async () => {
+    const init = async () => {
       try {
         await storeAuthToken(deviceId, authToken);
-        console.log('Auth token stored on mount for device:', deviceId);
-      } catch (err) {
-        console.error('Error storing auth token on mount:', err);
+        const status = await getRelayStatus(deviceId);
+        setRelayStates(status.relays);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch relay status');
+      } finally {
+        setInitializing(false);
       }
     };
-    storeToken();
+    init();
   }, [deviceId, authToken]);
 
-  const toggleRelay = async () => {
+  const toggleRelay = async (relayNumber: number) => {
+    if (!relayStates) return;
+    setLoading(relayNumber);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const newState = relayState === 'on' ? 'off' : 'on';
-      
-      // Verify auth token before making the API call
-      const storedToken = await getAuthToken(deviceId);
-      if (!storedToken) {
-        // If no stored token, try to store it again
-        await storeAuthToken(deviceId, authToken);
-      }
-      
-      console.log('Toggling relay:', { 
-        deviceId, 
-        newState,
-        hasStoredToken: !!storedToken
-      });
-      
-      const response = await controlRelay(deviceId, newState);
-      if (response.success) {
-        setRelayState(newState);
-      } else {
-        throw new Error('Failed to control relay');
-      }
-    } catch (err) {
-      console.error('Error toggling relay:', err);
-      setError(err instanceof Error ? err.message : 'Failed to control relay');
-      // Revert state on error
-      setRelayState(relayState);
+      const relayKey = `relay${relayNumber}` as keyof typeof relayStates;
+      const newState = relayStates[relayKey] === 'on' ? 'off' : 'on';
+      const response = await controlRelay(deviceId, relayNumber, newState);
+      setRelayStates(response.relays);
+    } catch (err: any) {
+      setError(err.message || 'Failed to control relay');
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
+
+  if (initializing) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="small" color="#3b82f6" />
+        <Text style={styles.label}>Loading relay states...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Relay Control</Text>
-      <TouchableOpacity
-        style={[
-          styles.button,
-          relayState === 'on' ? styles.buttonOn : styles.buttonOff,
-          loading && styles.buttonDisabled
-        ]}
-        onPress={toggleRelay}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>
-            {relayState === 'on' ? 'Turn Off' : 'Turn On'}
-          </Text>
-        )}
-      </TouchableOpacity>
+      {relayStates && relayLabels.map((label, idx) => {
+        const relayKey = `relay${idx + 1}` as keyof typeof relayStates;
+        return (
+          <View key={relayKey} style={styles.relayRow}>
+            <Text style={styles.relayLabel}>{label}</Text>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                relayStates[relayKey] === 'on' ? styles.buttonOn : styles.buttonOff,
+                loading === idx + 1 && styles.buttonDisabled
+              ]}
+              onPress={() => toggleRelay(idx + 1)}
+              disabled={loading === idx + 1}
+            >
+              {loading === idx + 1 ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {relayStates[relayKey] === 'on' ? 'Turn Off' : 'Turn On'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+      })}
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
@@ -98,12 +110,23 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 8,
   },
+  relayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    justifyContent: 'space-between',
+  },
+  relayLabel: {
+    fontSize: 15,
+    color: '#444',
+    flex: 1,
+  },
   button: {
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minWidth: 90,
   },
   buttonOn: {
     backgroundColor: '#4CAF50',
@@ -116,7 +139,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   errorText: {

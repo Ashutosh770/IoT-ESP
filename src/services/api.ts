@@ -33,9 +33,20 @@ export interface DevicesResponse {
   devices: Device[];
 }
 
+// Update SensorData and related interfaces
+declare module './types' {
+  export interface SensorData {
+    temperature: number;
+    humidity: number;
+    soilMoisture: number;
+    timestamp: string;
+  }
+}
+
 export interface SensorData {
   temperature: number;
   humidity: number;
+  soilMoisture: number;
   timestamp: string;
 }
 
@@ -53,6 +64,7 @@ export interface SensorDataInput {
   deviceId: string;
   temperature: number;
   humidity: number;
+  soilMoisture: number;
 }
 
 export interface SensorDataResponse {
@@ -61,6 +73,7 @@ export interface SensorDataResponse {
     deviceId: string;
     temperature: number;
     humidity: number;
+    soilMoisture: number;
     timestamp: string;
   };
 }
@@ -260,6 +273,7 @@ export const fetchLatestData = async (deviceId: string): Promise<SensorResponse>
         data: {
           temperature: 0,
           humidity: 0,
+          soilMoisture: 0,
           timestamp: new Date().toISOString()
         }
       };
@@ -283,6 +297,7 @@ export const fetchLatestData = async (deviceId: string): Promise<SensorResponse>
       data: {
         temperature: data.data.temperature,
         humidity: data.data.humidity,
+        soilMoisture: data.data.soilMoisture,
         timestamp: data.data.timestamp
       }
     };
@@ -308,6 +323,7 @@ export const fetchLatestData = async (deviceId: string): Promise<SensorResponse>
       data: {
         temperature: 0,
         humidity: 0,
+        soilMoisture: 0,
         timestamp: new Date().toISOString()
       }
     };
@@ -339,7 +355,7 @@ export const fetchHistoryData = async (deviceId: string, limit: number = 100): P
     }
     
     const data = await response.json();
-    console.log('History data response:', data);
+    // console.log('History data response:', data);
     
     if (!data.success || !Array.isArray(data.data)) {
       console.error('Invalid history data response format:', data);
@@ -348,9 +364,10 @@ export const fetchHistoryData = async (deviceId: string, limit: number = 100): P
 
     return {
       success: true,
-      data: data.data.map((reading: { temperature: number; humidity: number; timestamp: string }) => ({
+      data: data.data.map((reading: { temperature: number; humidity: number; soilMoisture: number; timestamp: string }) => ({
         temperature: reading.temperature,
         humidity: reading.humidity,
+        soilMoisture: reading.soilMoisture,
         timestamp: reading.timestamp
       }))
     };
@@ -367,9 +384,10 @@ export const sendSensorData = async (
   deviceId: string,
   temperature: number,
   humidity: number,
+  soilMoisture: number,
   authToken: string
 ): Promise<SensorDataResponse> => {
-  console.log('Sending sensor data:', { deviceId, temperature, humidity });
+  console.log('Sending sensor data:', { deviceId, temperature, humidity, soilMoisture });
   
   // Validate input ranges
   if (temperature < -40 || temperature > 80) {
@@ -377,6 +395,9 @@ export const sendSensorData = async (
   }
   if (humidity < 0 || humidity > 100) {
     throw new Error('Humidity must be between 0% and 100%');
+  }
+  if (soilMoisture < 0 || soilMoisture > 100) {
+    throw new Error('Soil moisture must be between 0% and 100%');
   }
 
   try {
@@ -392,7 +413,8 @@ export const sendSensorData = async (
       body: JSON.stringify({
         deviceId,
         temperature,
-        humidity
+        humidity,
+        soilMoisture
       })
     });
 
@@ -415,6 +437,7 @@ export const sendSensorData = async (
         deviceId: data.data.deviceId,
         temperature: data.data.temperature,
         humidity: data.data.humidity,
+        soilMoisture: data.data.soilMoisture,
         timestamp: data.data.timestamp
       }
     };
@@ -424,18 +447,84 @@ export const sendSensorData = async (
   }
 };
 
-export const controlRelay = async (deviceId: string, state: 'on' | 'off'): Promise<RelayControlResponse> => {
+export const getRelayStatus = async (deviceId: string): Promise<{
+  success: boolean;
+  deviceId: string;
+  relays: {
+    relay1: 'on' | 'off';
+    relay2: 'on' | 'off';
+    relay3: 'on' | 'off';
+    relay4: 'on' | 'off';
+  };
+}> => {
   try {
     const authToken = await getAuthToken(deviceId);
     if (!authToken) {
-      console.error('No auth token found for device:', deviceId);
+      throw new Error('No auth token found for device');
+    }
+
+    console.log('Fetching relay status for device:', deviceId);
+    const response = await fetch(`${API_URL}/relay/status/${deviceId}`, {
+      headers: {
+        'x-auth-token': authToken
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Relay status fetch failed:', { 
+        status: response.status, 
+        error: errorText,
+        url: `${API_URL}/relay/status/${deviceId}`
+      });
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Relay status response:', JSON.stringify(data, null, 2));
+
+    if (!data.success || !data.deviceId || !data.relays) {
+      console.error('Invalid relay status response format:', {
+        hasSuccess: !!data.success,
+        hasDeviceId: !!data.deviceId,
+        hasRelays: !!data.relays,
+        data
+      });
+      throw new Error('Invalid response format from server');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching relay status:', error);
+    throw error;
+  }
+};
+
+export const controlRelay = async (
+  deviceId: string,
+  relayNumber: number,
+  state: 'on' | 'off'
+): Promise<{
+  success: boolean;
+  deviceId: string;
+  relays: {
+    relay1: 'on' | 'off';
+    relay2: 'on' | 'off';
+    relay3: 'on' | 'off';
+    relay4: 'on' | 'off';
+  };
+}> => {
+  try {
+    const authToken = await getAuthToken(deviceId);
+    if (!authToken) {
       throw new Error('No auth token found for device');
     }
 
     console.log('Controlling relay:', { 
       deviceId, 
-      state, 
-      authToken: authToken.substring(0, 10) + '...' // Log partial token for debugging
+      relayNumber, 
+      state,
+      url: `${API_URL}/relay/control`
     });
 
     const response = await fetch(`${API_URL}/relay/control`, {
@@ -446,9 +535,9 @@ export const controlRelay = async (deviceId: string, state: 'on' | 'off'): Promi
       },
       body: JSON.stringify({
         deviceId,
-        relay: state,
-        authToken
-      }),
+        relayNumber,
+        state
+      })
     });
 
     if (!response.ok) {
@@ -456,24 +545,25 @@ export const controlRelay = async (deviceId: string, state: 'on' | 'off'): Promi
       console.error('Relay control failed:', { 
         status: response.status, 
         error: errorText,
-        authToken: authToken.substring(0, 10) + '...' // Log partial token in error
+        url: `${API_URL}/relay/control`
       });
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
-    // console.log('Relay control response:', data);
+    console.log('Relay control response:', JSON.stringify(data, null, 2));
 
-    // Ensure response matches RelayControlResponse type
-    if (!data.success || !data.deviceId || !data.relay) {
+    if (!data.success || !data.deviceId || !data.relays) {
+      console.error('Invalid relay control response format:', {
+        hasSuccess: !!data.success,
+        hasDeviceId: !!data.deviceId,
+        hasRelays: !!data.relays,
+        data
+      });
       throw new Error('Invalid response format from server');
     }
 
-    return {
-      success: data.success,
-      deviceId: data.deviceId,
-      relay: data.relay
-    };
+    return data;
   } catch (error) {
     console.error('Error controlling relay:', error);
     throw error;

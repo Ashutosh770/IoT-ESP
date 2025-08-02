@@ -2,6 +2,7 @@ export interface SensorData {
   deviceId: string;
   temperature: number;
   humidity: number;
+  soilMoisture: number;
   timestamp: string;
 }
 

@@ -18,7 +18,7 @@ import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Circle, Path, G, Text as SvgText } from 'react-native-svg';
 import { fetchLatestData, fetchHistoryData } from '../services/api';
-import { RelayControl } from '../components/RelayControl';
+import { RelayWidget } from '../components/RelayWidget';
 import { storeAuthToken } from '../utils/auth';
 
 // Get screen dimensions
@@ -55,7 +55,7 @@ const DataBar = ({ value, maxValue, color, label }: { value: number, maxValue: n
 };
 
 // Temperature Dial Component
-const TemperatureDial = ({ temperature }: { temperature: number }) => {
+const TemperatureDial = ({ temperature, color, max }: { temperature: number, color: string, max: number }) => {
   // Calculate the angle for the temperature (0-50°C maps to 135° to -135°)
   const getTemperatureColor = (temp: number) => {
     if (temp < 10) return '#4dabf7'; // cold - blue
@@ -65,7 +65,7 @@ const TemperatureDial = ({ temperature }: { temperature: number }) => {
   };
   
   // Convert temperature to angle (0-50°C maps to 135° to -135°)
-  const tempAngle = 135 - (temperature / 50) * 270;
+  const tempAngle = 135 - (temperature / max) * 270;
   
   // Generate the arc path for the dial
   const generateArc = (radius: number, startAngle: number, endAngle: number) => {
@@ -117,63 +117,100 @@ const TemperatureDial = ({ temperature }: { temperature: number }) => {
   // Calculate needle position
   const needlePoint = polarToCartesian(60, tempAngle);
   
+  // Calculate min/max label positions
+  const r = 85;
+  const center = 100;
+  const minAngle = (135 * Math.PI) / 180;
+  const maxAngle = (45 * Math.PI) / 180;
+  const minX = center + (r + 18) * Math.cos(minAngle);
+  const minY = center + (r + 18) * Math.sin(minAngle);
+  const maxX = center + (r + 18) * Math.cos(maxAngle);
+  const maxY = center + (r + 18) * Math.sin(maxAngle);
+
   return (
-    <View style={styles.dialContainer}>
-      <Svg height="200" width="200" viewBox="0 0 200 200">
-        {/* Background Circle */}
-        <Circle cx="100" cy="100" r="85" fill="#f8f9fb" stroke="#e9ecef" strokeWidth="2" />
-        
-        {/* Colored Arc */}
+    <Svg width={200} height={200} viewBox="0 0 200 200">
+      {/* Background Circle */}
+      <Circle cx="100" cy="100" r="85" fill="#f8f9fb" stroke="#e9ecef" strokeWidth="2" />
+      
+      {/* Colored Arc */}
+      <Path
+        d={generateArc(80, 135, -135)}
+        stroke="#e9ecef"
+        strokeWidth="10"
+        fill="none"
+        strokeLinecap="round"
+      />
+      
+      {/* Tick Marks */}
+      <G>
+        {generateTicks()}
+      </G>
+      
+      {/* Min/Max labels */}
+      <SvgText
+        x={minX}
+        y={minY}
+        fontSize="14"
+        fill="#888"
+        textAnchor="middle"
+        alignmentBaseline="middle"
+      >
+        {max}
+      </SvgText>
+      <SvgText
+        x={maxX}
+        y={maxY}
+        fontSize="14"
+        fill="#888"
+        textAnchor="middle"
+        alignmentBaseline="middle"
+      >
+        0
+      </SvgText>
+      
+      {/* Value in center, but higher up */}
+      <G>
+        <SvgText
+          x="100"
+          y="70"
+          fontSize="28"
+          fontWeight="bold"
+          fill="#4a5568"
+          textAnchor="middle"
+          alignmentBaseline="middle"
+        >
+          {temperature.toFixed(1)}
+        </SvgText>
+      </G>
+      {/* Needle (drawn after value so it's above) */}
+      <G>
         <Path
-          d={generateArc(80, 135, -135)}
-          stroke="#e9ecef"
-          strokeWidth="10"
-          fill="none"
+          d={`M100 100 L${needlePoint.x} ${needlePoint.y}`}
+          stroke={color}
+          strokeWidth="6"
           strokeLinecap="round"
         />
-        
-        {/* Tick Marks */}
-        <G>
-          {generateTicks()}
-        </G>
-        
-        {/* Temperature Needle */}
-        <G>
-          <Path
-            d={`M 100 100 L ${needlePoint.x} ${needlePoint.y}`}
-            stroke={getTemperatureColor(temperature)}
-            strokeWidth="3"
-            fill="none"
-          />
-          <Circle cx="100" cy="100" r="8" fill={getTemperatureColor(temperature)} />
-        </G>
-        
-        {/* Temperature Text */}
-        <G>
-          <SvgText
-            x="100"
-            y="85"
-            fontSize="28"
-            fontWeight="bold"
-            fill="#4a5568"
-            textAnchor="middle"
-          >
-            {temperature.toFixed(1)}
-          </SvgText>
-          <SvgText
-            x="130"
-            y="80"
-            fontSize="16"
-            fill="#4a5568"
-            textAnchor="middle"
-          >
-            °C
-          </SvgText>
-        </G>
-      </Svg>
-    </View>
+        <Circle cx="100" cy="100" r="8" fill={getTemperatureColor(temperature)} />
+      </G>
+    </Svg>
   );
 };
+
+// Update gauge usages to wrap with a label below
+const GaugeWithLabel = ({ value, color, max, label }: { value: number, color: string, max: number, label: string }) => (
+  <View style={styles.gaugeWrapper}>
+    <TemperatureDial temperature={value} color={color} max={max} />
+    <Text style={styles.gaugeLabel}>{label}</Text>
+  </View>
+);
+
+// Update HumidityDial and SoilMoistureDial to use GaugeWithLabel
+const HumidityDial = ({ humidity }: { humidity: number }) => (
+  <GaugeWithLabel value={humidity} color="#4dabf7" max={100} label="Humidity" />
+);
+const SoilMoistureDial = ({ soilMoisture }: { soilMoisture: number }) => (
+  <GaugeWithLabel value={soilMoisture} color="#8bc34a" max={100} label="Soil Moisture" />
+);
 
 // Hamburger Icon Component
 const HamburgerIcon = ({ onPress }: { onPress: () => void }) => (
@@ -189,7 +226,7 @@ type WidgetConfig = {
   id: string;
   title: string;
   enabled: boolean;
-  component: 'gauge' | 'cards' | 'bars';
+  component: 'gauge' | 'humidityGauge' | 'soilGauge' | 'cards' | 'bars' | 'soil' | 'relay1' | 'relay2' | 'relay3' | 'relay4';
 };
 
 const SensorDetailScreen = () => {
@@ -219,38 +256,35 @@ const SensorDetailScreen = () => {
   // Widget configurations
   const [widgets, setWidgets] = useState<WidgetConfig[]>([
     { id: '1', title: 'Temperature Gauge', enabled: true, component: 'gauge' },
+    { id: 'humidityGauge', title: 'Humidity Gauge', enabled: true, component: 'humidityGauge' },
+    { id: 'soilGauge', title: 'Soil Moisture Gauge', enabled: true, component: 'soilGauge' },
     { id: '2', title: 'Temperature & Humidity Cards', enabled: true, component: 'cards' },
     { id: '3', title: 'Data Visualization Bars', enabled: true, component: 'bars' },
+    { id: 'soil', title: 'Soil Moisture', enabled: true, component: 'soil' },
+    { id: 'relay1', title: 'Relay 1', enabled: true, component: 'relay1' },
+    { id: 'relay2', title: 'Relay 2', enabled: true, component: 'relay2' },
+    { id: 'relay3', title: 'Relay 3', enabled: true, component: 'relay3' },
+    { id: 'relay4', title: 'Relay 4', enabled: true, component: 'relay4' },
   ]);
 
   // Animation value for menu
   const slideAnim = useRef(new Animated.Value(-width)).current;
 
-  const loadData = async () => {
+  const loadData = async (showSpinner = false) => {
     if (!deviceId) {
       console.error('No device ID available for loading data');
       return;
     }
-
-    setLoading(true);
-    
+    if (showSpinner) setLoading(true);
     try {
-      // Store auth token if available in device details
       if (route.params.authToken) {
-        console.log('Storing auth token for device:', deviceId);
         await storeAuthToken(deviceId, route.params.authToken);
-      } else {
-        console.log('No auth token provided in route params');
       }
-
-      // Load current sensor data
       const result = await fetchLatestData(deviceId);
       if (result.success) {
         setSensorData(result.data);
         setLastUpdated(new Date());
       }
-      
-      // Load history data for graph
       const history = await fetchHistoryData(deviceId);
       if (history.success && history.data.length > 0) {
         setHistoryData(history.data);
@@ -258,25 +292,21 @@ const SensorDetailScreen = () => {
     } catch (error) {
       console.error('Error loading sensor data:', error);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadData(true);
     setRefreshing(false);
   };
 
   useEffect(() => {
     if (deviceId) {
-      console.log('Starting data load for device:', deviceId);
-      loadData();
-      const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
-      return () => {
-        console.log('Cleaning up interval for device:', deviceId);
-        clearInterval(interval);
-      };
+      loadData(true); // Initial load with spinner
+      const interval = setInterval(() => loadData(false), 3000); // Silent refresh every 3 seconds
+      return () => clearInterval(interval);
     }
   }, [deviceId]);
 
@@ -315,7 +345,7 @@ const SensorDetailScreen = () => {
   };
 
   // Check if a component should be shown
-  const shouldShowComponent = (component: 'gauge' | 'cards' | 'bars') => {
+  const shouldShowComponent = (component: 'gauge' | 'humidityGauge' | 'soilGauge' | 'cards' | 'bars' | 'soil' | 'relay1' | 'relay2' | 'relay3' | 'relay4') => {
     return widgets.some(widget => widget.component === component && widget.enabled);
   };
 
@@ -349,22 +379,40 @@ const SensorDetailScreen = () => {
               {/* Temperature Dial */}
               {sensorData && shouldShowComponent('gauge') && (
                 <View style={styles.dialWrapper}>
-                  <TemperatureDial temperature={parseFloat(sensorData.temperature) || 0} />
+                  <GaugeWithLabel value={parseFloat(sensorData.temperature) || 0} color="#ff6b6b" max={50} label="Temperature" />
+                </View>
+              )}
+              {sensorData && shouldShowComponent('humidityGauge') && (
+                <View style={styles.dialWrapper}>
+                  <HumidityDial humidity={parseFloat(sensorData.humidity) || 0} />
+                </View>
+              )}
+              {sensorData && shouldShowComponent('soilGauge') && (
+                <View style={styles.dialWrapper}>
+                  <SoilMoistureDial soilMoisture={parseFloat(sensorData.soilMoisture) || 0} />
                 </View>
               )}
             
               {/* Temperature and Humidity Cards */}
               {shouldShowComponent('cards') && (
-                <View style={styles.row}>
-                  <View style={styles.card}>
-                    <Text style={styles.label}>Temperature</Text>
-                    <Text style={styles.value}>{sensorData?.temperature || '--'}°C</Text>
+                <>
+                  <View style={styles.rowCard}>
+                    <View style={styles.cardHalf}>
+                      <Text style={styles.label}>Temperature</Text>
+                      <Text style={styles.value}>{sensorData?.temperature ?? '--'}°C</Text>
+                    </View>
+                    <View style={styles.cardHalf}>
+                      <Text style={styles.label}>Humidity</Text>
+                      <Text style={styles.value}>{sensorData?.humidity ?? '--'}%</Text>
+                    </View>
                   </View>
-                  <View style={styles.card}>
-                    <Text style={styles.label}>Humidity</Text>
-                    <Text style={styles.value}>{sensorData?.humidity || '--'}%</Text>
-                  </View>
-                </View>
+                  {shouldShowComponent('soil') && (
+                    <View style={styles.singleCard}>
+                      <Text style={styles.label}>Soil Moisture</Text>
+                      <Text style={styles.value}>{sensorData?.soilMoisture ?? '--'}%</Text>
+                    </View>
+                  )}
+                </>
               )}
             </>
           )}
@@ -384,12 +432,18 @@ const SensorDetailScreen = () => {
                 color="#4dabf7" 
                 label="Humidity (%)" 
               />
+              <DataBar 
+                value={parseFloat(sensorData.soilMoisture) || 0} 
+                maxValue={100} 
+                color="#8bc34a" 
+                label="Soil Moisture (%)" 
+              />
             </View>
           )}
           
           <View style={styles.historyHeader}>
             <Text style={styles.subtitle}>Device Info</Text>
-            <Text style={styles.autoRefresh}>Auto-refresh: 30s</Text>
+            <Text style={styles.autoRefresh}>Auto-refresh: 3s</Text>
           </View>
           
           <View style={styles.historyBox}>
@@ -397,6 +451,7 @@ const SensorDetailScreen = () => {
               <View style={styles.dataInfo}>
                 <Text style={styles.deviceId}>Device ID: {deviceId}</Text>
                 <Text style={styles.timestamp}>Last updated: {lastUpdated?.toLocaleTimeString()}</Text>
+                <Text style={styles.timestamp}>Soil Moisture: {sensorData.soilMoisture ?? '--'}%</Text>
               </View>
             ) : (
               <Text style={{color:'#bbb'}}>No data available</Text>
@@ -404,12 +459,41 @@ const SensorDetailScreen = () => {
           </View>
           
           {/* Add Relay Control */}
-          <View style={styles.relayControlContainer}>
-            <RelayControl 
-              deviceId={deviceId} 
-              authToken={route.params.authToken || 'ec0d7c50f303ef0af51928bd681f246f1d2cd53c5e9db7ac8afc4713380f660b'} 
+          {shouldShowComponent('relay1') && (
+            <RelayWidget
+              deviceId={deviceId}
+              authToken={route.params.authToken || 'ec0d7c50f303ef0af51928bd681f246f1d2cd53c5e9db7ac8afc4713380f660b'}
+              relayNumber={1}
+              label="Relay 1"
             />
-          </View>
+          )}
+
+          {shouldShowComponent('relay2') && (
+            <RelayWidget
+              deviceId={deviceId}
+              authToken={route.params.authToken || 'ec0d7c50f303ef0af51928bd681f246f1d2cd53c5e9db7ac8afc4713380f660b'}
+              relayNumber={2}
+              label="Relay 2"
+            />
+          )}
+
+          {shouldShowComponent('relay3') && (
+            <RelayWidget
+              deviceId={deviceId}
+              authToken={route.params.authToken || 'ec0d7c50f303ef0af51928bd681f246f1d2cd53c5e9db7ac8afc4713380f660b'}
+              relayNumber={3}
+              label="Relay 3"
+            />
+          )}
+
+          {shouldShowComponent('relay4') && (
+            <RelayWidget
+              deviceId={deviceId}
+              authToken={route.params.authToken || 'ec0d7c50f303ef0af51928bd681f246f1d2cd53c5e9db7ac8afc4713380f660b'}
+              relayNumber={4}
+              label="Relay 4"
+            />
+          )}
           
           <TouchableOpacity style={styles.controlBtn} onPress={() => navigation.navigate('ControlPanel')}>
             <Text style={styles.controlBtnText}>Go to Control Panel</Text>
@@ -493,7 +577,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   card: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, marginHorizontal: 4, alignItems: 'center' },
   label: { color: '#888', fontSize: 14 },
-  value: { fontWeight: 'bold', fontSize: 18 },
+  value: { fontWeight: 'bold', fontSize: 16 },
   subtitle: { fontWeight: 'bold', fontSize: 16 },
   autoRefresh: { color: '#bbb', fontSize: 12 },
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 8 },
@@ -547,9 +631,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
-  dialContainer: {
+  gaugeWrapper: {
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  gaugeLabel: {
+    marginTop: 4,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
   // Hamburger menu styles
   hamburgerButton: {
@@ -660,6 +750,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+  },
+  singleCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  rowCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  cardHalf: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 4,
+    alignItems: 'center',
   },
 });
 

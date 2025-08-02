@@ -139,6 +139,10 @@ const SensorDetail = () => {
               <Text style={styles.readingValue}>{state.currentData.humidity}%</Text>
               <Text style={styles.readingLabel}>Humidity</Text>
             </View>
+            <View style={styles.reading}>
+              <Text style={styles.readingValue}>{state.currentData.soilMoisture ?? '--'}%</Text>
+              <Text style={styles.readingLabel}>Soil Moisture</Text>
+            </View>
           </View>
           <Text style={styles.timestamp}>
             Last updated: {formatTimestamp(state.currentData.timestamp)}
@@ -153,6 +157,7 @@ const SensorDetail = () => {
             <View style={styles.historyReadings}>
               <Text style={styles.historyValue}>{reading.temperature}°C</Text>
               <Text style={styles.historyValue}>{reading.humidity}%</Text>
+              <Text style={styles.historyValue}>{reading.soilMoisture ?? '--'}%</Text>
             </View>
             <Text style={styles.historyTimestamp}>
               {formatTimestamp(reading.timestamp)}
