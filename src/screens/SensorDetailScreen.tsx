@@ -238,9 +238,11 @@ const getDistanceStatusColor = (distance: number): string => {
 
 // Distance Card Component
 const DistanceCard = ({ distance }: { distance: number }) => {
+  console.log("DistanceCard rendered with distance:", distance);
   const status = getDistanceStatus(distance);
   const statusColor = getDistanceStatusColor(distance);
   const percentage = Math.min(Math.max((distance / 400) * 100, 0), 100); // Max range 400cm
+  console.log("Distance status:", status, "color:", statusColor, "percentage:", percentage);
   
   return (
     <View style={styles.distanceCard}>
@@ -342,8 +344,20 @@ const SensorDetailScreen = () => {
         await storeAuthToken(deviceId, route.params.authToken);
       }
       const result = await fetchLatestData(deviceId);
+      console.log('Fetched latest data:', result.data);
       if (result.success) {
-        setSensorData(result.data);
+        // Ensure all expected fields are present with fallbacks
+        const completeData = {
+          ...result.data, // Keep all existing fields first
+          temperature: (result.data as any).temperature ?? 0,
+          humidity: (result.data as any).humidity ?? 0,
+          soilMoisture: (result.data as any).soilMoisture ?? 0,
+          distance: (result.data as any).distance ?? 0,
+          timestamp: (result.data as any).timestamp ?? new Date().toISOString(),
+          deviceId: (result.data as any).deviceId ?? deviceId
+        };
+        console.log('Setting complete sensor data:', completeData);
+        setSensorData(completeData);
         setLastUpdated(new Date());
       }
       const history = await fetchHistoryData(deviceId);
@@ -374,6 +388,12 @@ const SensorDetailScreen = () => {
   // For debugging
   useEffect(() => {
     console.log("Sensor data updated:", sensorData);
+    if (sensorData) {
+      console.log("Distance value:", sensorData.distance);
+      console.log("Distance type:", typeof sensorData.distance);
+      console.log("Distance parsed:", parseFloat(sensorData.distance) || 0);
+      console.log("Should show distance component:", shouldShowComponent('distance'));
+    }
   }, [sensorData]);
 
   // Toggle menu visibility
@@ -512,7 +532,9 @@ const SensorDetailScreen = () => {
           
           {/* Distance Card */}
           {sensorData && !loading && shouldShowComponent('distance') && (
-            <DistanceCard distance={parseFloat(sensorData.distance) || 0} />
+            <DistanceCard distance={
+              typeof sensorData.distance === 'number' ? sensorData.distance : Number(sensorData.distance)
+            } />
           )}
           
           <View style={styles.historyHeader}>

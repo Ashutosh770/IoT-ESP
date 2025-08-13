@@ -34,19 +34,12 @@ export interface DevicesResponse {
 }
 
 // Update SensorData and related interfaces
-declare module './types' {
-  export interface SensorData {
-    temperature: number;
-    humidity: number;
-    soilMoisture: number;
-    timestamp: string;
-  }
-}
 
 export interface SensorData {
   temperature: number;
   humidity: number;
   soilMoisture: number;
+  distance: number;
   timestamp: string;
 }
 
@@ -274,6 +267,7 @@ export const fetchLatestData = async (deviceId: string): Promise<SensorResponse>
           temperature: 0,
           humidity: 0,
           soilMoisture: 0,
+          distance: 0,
           timestamp: new Date().toISOString()
         }
       };
@@ -298,6 +292,7 @@ export const fetchLatestData = async (deviceId: string): Promise<SensorResponse>
         temperature: data.data.temperature,
         humidity: data.data.humidity,
         soilMoisture: data.data.soilMoisture,
+        distance: data.data.distance,
         timestamp: data.data.timestamp
       }
     };
@@ -324,6 +319,7 @@ export const fetchLatestData = async (deviceId: string): Promise<SensorResponse>
         temperature: 0,
         humidity: 0,
         soilMoisture: 0,
+        distance: 0,
         timestamp: new Date().toISOString()
       }
     };
@@ -364,10 +360,11 @@ export const fetchHistoryData = async (deviceId: string, limit: number = 100): P
 
     return {
       success: true,
-      data: data.data.map((reading: { temperature: number; humidity: number; soilMoisture: number; timestamp: string }) => ({
+      data: data.data.map((reading: { temperature: number; humidity: number; soilMoisture: number; distance?: number; timestamp: string }) => ({
         temperature: reading.temperature,
         humidity: reading.humidity,
         soilMoisture: reading.soilMoisture,
+        distance: reading.distance || 0,
         timestamp: reading.timestamp
       }))
     };
