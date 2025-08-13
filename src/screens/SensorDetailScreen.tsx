@@ -56,26 +56,25 @@ const DataBar = ({ value, maxValue, color, label }: { value: number, maxValue: n
 
 // Temperature Dial Component
 const TemperatureDial = ({ temperature, color, max }: { temperature: number, color: string, max: number }) => {
-  // Calculate the angle for the temperature (0-50°C maps to 135° to -135°)
+  // Calculate the angle for the temperature (0-50°C maps to -135° to 135°)
   const getTemperatureColor = (temp: number) => {
     if (temp < 10) return '#4dabf7'; // cold - blue
     if (temp < 20) return '#51cf66'; // cool - green
     if (temp < 30) return '#fcc419'; // warm - yellow
     return '#ff6b6b';  // hot - red
   };
-  
-  // Convert temperature to angle (0-50°C maps to 135° to -135°)
-  const tempAngle = 135 - (temperature / max) * 270;
-  
-  // Generate the arc path for the dial
+
+  // Convert temperature to angle (0-50°C maps to -135° to 135°)
+  const tempAngle = -135 + (temperature / max) * 270;
+
+  // Generate the arc path for the dial (left to right)
   const generateArc = (radius: number, startAngle: number, endAngle: number) => {
     const start = polarToCartesian(radius, startAngle);
     const end = polarToCartesian(radius, endAngle);
-    const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
-    
-    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
+    const largeArcFlag = Math.abs(endAngle - startAngle) <= 180 ? 0 : 1;
+    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
   };
-  
+
   // Convert polar coordinates to cartesian
   const polarToCartesian = (radius: number, angleInDegrees: number) => {
     const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
@@ -84,24 +83,24 @@ const TemperatureDial = ({ temperature, color, max }: { temperature: number, col
       y: 100 + (radius * Math.sin(angleInRadians))
     };
   };
-  
-  // Generate tick marks
+
+  // Generate tick marks (left to right)
   const generateTicks = () => {
     const ticks = [];
     const radius = 80;
     const tickLength = 10;
-    
-    for (let angle = 135; angle >= -135; angle -= 15) {
+
+    for (let angle = -135; angle <= 135; angle += 15) {
       const outer = polarToCartesian(radius, angle);
       const inner = polarToCartesian(radius - tickLength, angle);
-      
+
       // Determine color based on position
       let tickColor;
-      if (angle > 90) tickColor = '#4dabf7'; // blue
-      else if (angle > 0) tickColor = '#51cf66'; // green
-      else if (angle > -90) tickColor = '#fcc419'; // yellow
+      if (angle < -90) tickColor = '#4dabf7'; // blue
+      else if (angle < 0) tickColor = '#51cf66'; // green
+      else if (angle < 90) tickColor = '#fcc419'; // yellow
       else tickColor = '#ff6b6b'; // red
-      
+
       ticks.push(
         <Path
           key={`tick-${angle}`}
@@ -113,40 +112,44 @@ const TemperatureDial = ({ temperature, color, max }: { temperature: number, col
     }
     return ticks;
   };
-  
+
   // Calculate needle position
   const needlePoint = polarToCartesian(60, tempAngle);
-  
-  // Calculate min/max label positions
+
+  // Calculate min/max label positions (left: 0, right: max)
   const r = 85;
   const center = 100;
-  const minAngle = (135 * Math.PI) / 180;
-  const maxAngle = (45 * Math.PI) / 180;
-  const minX = center + (r + 18) * Math.cos(minAngle);
-  const minY = center + (r + 18) * Math.sin(minAngle);
-  const maxX = center + (r + 18) * Math.cos(maxAngle);
-  const maxY = center + (r + 18) * Math.sin(maxAngle);
+  const labelRadius = r + 18;
+  // Use -135° for min (0), 135° for max
+  const minAngleDeg = -135;
+  const maxAngleDeg = 135;
+  const minAngleRad = (minAngleDeg - 90) * Math.PI / 180;
+  const maxAngleRad = (maxAngleDeg - 90) * Math.PI / 180;
+  const minX = center + labelRadius * Math.cos(minAngleRad);
+  const minY = center + labelRadius * Math.sin(minAngleRad);
+  const maxX = center + labelRadius * Math.cos(maxAngleRad);
+  const maxY = center + labelRadius * Math.sin(maxAngleRad);
 
   return (
     <Svg width={200} height={200} viewBox="0 0 200 200">
       {/* Background Circle */}
       <Circle cx="100" cy="100" r="85" fill="#f8f9fb" stroke="#e9ecef" strokeWidth="2" />
-      
+
       {/* Colored Arc */}
       <Path
-        d={generateArc(80, 135, -135)}
+        d={generateArc(80, -135, 135)}
         stroke="#e9ecef"
         strokeWidth="10"
         fill="none"
         strokeLinecap="round"
       />
-      
+
       {/* Tick Marks */}
       <G>
         {generateTicks()}
       </G>
-      
-      {/* Min/Max labels */}
+
+      {/* Min/Max labels (left: 0, right: max) */}
       <SvgText
         x={minX}
         y={minY}
@@ -155,7 +158,7 @@ const TemperatureDial = ({ temperature, color, max }: { temperature: number, col
         textAnchor="middle"
         alignmentBaseline="middle"
       >
-        {max}
+        0
       </SvgText>
       <SvgText
         x={maxX}
@@ -165,9 +168,9 @@ const TemperatureDial = ({ temperature, color, max }: { temperature: number, col
         textAnchor="middle"
         alignmentBaseline="middle"
       >
-        0
+        {max}
       </SvgText>
-      
+
       {/* Value in center, but higher up */}
       <G>
         <SvgText
@@ -212,6 +215,63 @@ const SoilMoistureDial = ({ soilMoisture }: { soilMoisture: number }) => (
   <GaugeWithLabel value={soilMoisture} color="#8bc34a" max={100} label="Soil Moisture" />
 );
 
+// Distance status helper functions
+const getDistanceStatus = (distance: number): string => {
+  if (!distance || distance === 0) return 'No Data';
+  if (distance < 5) return 'Very Close';
+  if (distance < 15) return 'Close';
+  if (distance < 50) return 'Near';
+  if (distance < 100) return 'Moderate';
+  if (distance < 200) return 'Far';
+  return 'Very Far';
+};
+
+const getDistanceStatusColor = (distance: number): string => {
+  if (!distance) return '#6c757d';  // Gray
+  if (distance < 5) return '#dc3545';   // Red - Very Close
+  if (distance < 15) return '#fd7e14';  // Orange - Close  
+  if (distance < 50) return '#ffc107';  // Yellow - Near
+  if (distance < 100) return '#28a745'; // Green - Moderate
+  if (distance < 200) return '#17a2b8'; // Blue - Far
+  return '#6f42c1';  // Purple - Very Far
+};
+
+// Distance Card Component
+const DistanceCard = ({ distance }: { distance: number }) => {
+  const status = getDistanceStatus(distance);
+  const statusColor = getDistanceStatusColor(distance);
+  const percentage = Math.min(Math.max((distance / 400) * 100, 0), 100); // Max range 400cm
+  
+  return (
+    <View style={styles.distanceCard}>
+      <View style={styles.distanceHeader}>
+        <Text style={styles.distanceIcon}>📏</Text>
+        <Text style={styles.distanceTitle}>Distance Sensor</Text>
+      </View>
+      
+      <Text style={styles.distanceValue}>
+        {distance ? `${distance.toFixed(1)} cm` : '--'}
+      </Text>
+      
+      <View style={[styles.distanceStatus, { backgroundColor: statusColor }]}>
+        <Text style={styles.distanceStatusText}>{status}</Text>
+      </View>
+      
+      <View style={styles.distanceProgressContainer}>
+        <View style={styles.distanceProgressBackground}>
+          <View 
+            style={[
+              styles.distanceProgressFill, 
+              { width: `${percentage}%`, backgroundColor: statusColor }
+            ]} 
+          />
+        </View>
+        <Text style={styles.distanceRange}>Range: 2-400 cm</Text>
+      </View>
+    </View>
+  );
+};
+
 // Hamburger Icon Component
 const HamburgerIcon = ({ onPress }: { onPress: () => void }) => (
   <TouchableOpacity style={styles.hamburgerButton} onPress={onPress}>
@@ -226,7 +286,7 @@ type WidgetConfig = {
   id: string;
   title: string;
   enabled: boolean;
-  component: 'gauge' | 'humidityGauge' | 'soilGauge' | 'cards' | 'bars' | 'soil' | 'relay1' | 'relay2' | 'relay3' | 'relay4';
+  component: 'gauge' | 'humidityGauge' | 'soilGauge' | 'cards' | 'bars' | 'soil' | 'distance' | 'relay1' | 'relay2' | 'relay3' | 'relay4';
 };
 
 const SensorDetailScreen = () => {
@@ -261,6 +321,7 @@ const SensorDetailScreen = () => {
     { id: '2', title: 'Temperature & Humidity Cards', enabled: true, component: 'cards' },
     { id: '3', title: 'Data Visualization Bars', enabled: true, component: 'bars' },
     { id: 'soil', title: 'Soil Moisture', enabled: true, component: 'soil' },
+    { id: 'distance', title: 'Distance Sensor', enabled: true, component: 'distance' },
     { id: 'relay1', title: 'Relay 1', enabled: true, component: 'relay1' },
     { id: 'relay2', title: 'Relay 2', enabled: true, component: 'relay2' },
     { id: 'relay3', title: 'Relay 3', enabled: true, component: 'relay3' },
@@ -345,7 +406,7 @@ const SensorDetailScreen = () => {
   };
 
   // Check if a component should be shown
-  const shouldShowComponent = (component: 'gauge' | 'humidityGauge' | 'soilGauge' | 'cards' | 'bars' | 'soil' | 'relay1' | 'relay2' | 'relay3' | 'relay4') => {
+  const shouldShowComponent = (component: 'gauge' | 'humidityGauge' | 'soilGauge' | 'cards' | 'bars' | 'soil' | 'distance' | 'relay1' | 'relay2' | 'relay3' | 'relay4') => {
     return widgets.some(widget => widget.component === component && widget.enabled);
   };
 
@@ -438,7 +499,20 @@ const SensorDetailScreen = () => {
                 color="#8bc34a" 
                 label="Soil Moisture (%)" 
               />
+              {sensorData.distance !== undefined && (
+                <DataBar 
+                  value={parseFloat(sensorData.distance) || 0} 
+                  maxValue={400} 
+                  color={getDistanceStatusColor(parseFloat(sensorData.distance) || 0)} 
+                  label="Distance (cm)" 
+                />
+              )}
             </View>
+          )}
+          
+          {/* Distance Card */}
+          {sensorData && !loading && shouldShowComponent('distance') && (
+            <DistanceCard distance={parseFloat(sensorData.distance) || 0} />
           )}
           
           <View style={styles.historyHeader}>
@@ -640,6 +714,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  // Distance Card styles
+  distanceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  distanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  distanceIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  distanceTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  distanceValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#4a5568',
+    marginBottom: 8,
+  },
+  distanceStatus: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  distanceStatusText: {
+    color: '#fff',
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  distanceProgressContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  distanceProgressBackground: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#e9ecef',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  distanceProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  distanceRange: {
+    fontSize: 12,
+    color: '#666',
   },
   // Hamburger menu styles
   hamburgerButton: {
